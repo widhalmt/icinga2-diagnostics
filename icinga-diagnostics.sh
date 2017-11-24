@@ -60,6 +60,22 @@ function doc_icingaweb2 {
 
 }
 
+function doc_firewall {
+  echo -n "Firewall: "
+
+  if [ "$1" == "f" ]
+  then  
+    if [ "${RUNASROOT}" = "true" ]
+    then
+      iptables -nvL
+    else
+      echo "# Can not read firewall configuration without root permissions #"
+    fi
+  else
+    systemctl is-active firewalld
+  fi 
+}
+
 echo ""
 echo "## OS ##"
 echo ""
@@ -131,14 +147,7 @@ fi
 #getsebool -a | grep icinga2
 #audit2allow -li /var/log/audit/audit.log
 
-echo -n "Firewall: "
-
-if [ "${RUNASROOT}" = "true" ]
-then
-  iptables -nvL
-else
-  echo "# Can not read firewall configuration without root permissions #"
-fi
+doc_firewall
 
 echo ""
 echo "# Icinga 2 #"
