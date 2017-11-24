@@ -8,6 +8,20 @@ else
   RUNASROOT=true
 fi
 
+if [ $(which systemctl 2>/dev/null) ]
+then
+  SYSTEMD=true
+fi
+
+function check_service {
+  if [ "${SYSTEMD}" = "true" ]
+  then
+    systemctl is-active $1
+  else
+    service $1 status > /dev/null && echo "active" || echo "inactive"
+  fi
+}
+
 function doc_icinga2 {
   echo ""
   echo "Packages:"
@@ -72,7 +86,12 @@ function doc_firewall {
       echo "# Can not read firewall configuration without root permissions #"
     fi
   else
-    systemctl is-active firewalld
+    if [ "${SYSTEMD}" = "true" ]
+    then
+      check_service firewalld
+    else
+      check_service iptables
+    fi
   fi 
 }
 
