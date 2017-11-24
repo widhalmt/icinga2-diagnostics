@@ -8,7 +8,9 @@
 
 ## Static variables ##
 
-OPTSTR="ht"
+OPTSTR="fht"
+
+TIMESTAMP=$(date +%Y%m%d)
 
 ## Computed variables ##
 
@@ -31,6 +33,7 @@ function show_help {
   echo "
 
   Usage:
+  -f add full Icinga 2 configuration to output (use with -t)
   -h show this help
   -t create a tarball instead of just printing the output
   "
@@ -199,14 +202,30 @@ function doc_os {
   doc_firewall
 }
 
+function create_tarball {
+  OUTPUTDIR=$(mktemp -dt ic_diag.XXXXX)
+  # run this diagnostics script again and print it's output into the tarball
+  if [ "${FULL}" = true ]
+  then
+    $0 -f > ${OUTPUTDIR}/icinga_diagnostics
+  else
+    $0 > ${OUTPUTDIR}/icinga_diagnostics
+  fi
+  tar -cjf /tmp/icinga-diagnostics_$(hostname)_${TIMESTAMP}.tar.bz2 ${OUTPUTDIR}/* 2>/dev/null
+  chmod 0600 /tmp/icinga-diagnostics_$(hostname)_${TIMESTAMP}.tar.bz2
+  echo "Your tarball is ready at: /tmp/icinga-diagnostics_$(hostname)_${TIMESTAMP}.tar.bz2"
+  exit 0
+}
+
 ### Main ###
 
 
 while getopts ${OPTSTR} SWITCHVAR
 do
   case ${SWITCHVAR} in
+    f) FULL=true;;
     h) show_help;;
-    t) CREATE_TARBALL=true;;
+    t) create_tarball;;
   esac
 done
 
