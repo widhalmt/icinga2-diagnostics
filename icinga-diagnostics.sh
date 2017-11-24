@@ -128,11 +128,15 @@ else
       VIRTUAL=true
       HYPERVISOR="Xen"
     fi
+  elif [ "$(echo ${VIRT} | head -1)" = "kvm" ]
+  then
+    VIRTUAL=true
+    HYPERVISOR="KVM"
   else
     VIRTUAL=false
   fi
 
-  if [ "${VIRTUAL}" ]
+  if [ "${VIRTUAL}" = "false" ]
   then
     echo "Running on Hardware or unknown Hypervisor"
   else
