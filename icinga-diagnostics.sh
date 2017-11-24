@@ -1,4 +1,16 @@
 #!/bin/bash
+# Icinga Diagnostics
+# Collect basic data about your Icinga 2 installation
+# author: Thomas Widhalm <thomas.widhalm@icinga.com>
+# Original source: https://github.com/widhalmt/icinga2-diagnostics
+
+### VARIABLES ###
+
+## Static variables ##
+
+OPTSTR="ht"
+
+## Computed variables ##
 
 if [ "$(id -u)" != "0" ]; then
   echo "Not running as root. Not all checks might be successful"
@@ -12,6 +24,18 @@ if [ $(which systemctl 2>/dev/null) ]
 then
   SYSTEMD=true
 fi
+
+### Functions ###
+
+function show_help {
+  echo "
+
+  Usage:
+  -h show this help
+  -t create a tarball instead of just printing the output
+  "
+  exit 0
+}
 
 function check_service {
   if [ "${SYSTEMD}" = "true" ]
@@ -95,82 +119,98 @@ function doc_firewall {
   fi 
 }
 
-echo ""
-echo "## OS ##"
-echo ""
-echo -n "OS Version: "
+function doc_os {
 
-if [ -n "$(cat /etc/redhat-release)" ]
-then
-  QUERYPACKAGE="rpm -q"
-  OS="REDHAT"
-  cat /etc/redhat-release
-else
-  lsb_release -irs
-fi
+  echo ""
+  echo "## OS ##"
+  echo ""
+  echo -n "OS Version: "
 
-
-echo -n "Hypervisor: "
-
-
-VIRT=$(bash virt-what 2>/dev/null)
-
-if [ -z ${VIRT} ]
-then
-  echo "Running on hardware or unknown hypervisor"
-else
-  if [ "$(echo ${VIRT} | head -1)" = "xen" ]
+  if [ -n "$(cat /etc/redhat-release)" ]
   then
-    if [ "$(echo ${VIRT} | tail -1)" = "xen-dom0" ]
+    QUERYPACKAGE="rpm -q"
+    OS="REDHAT"
+    cat /etc/redhat-release
+  else
+    lsb_release -irs
+  fi
+
+
+  echo -n "Hypervisor: "
+
+
+  VIRT=$(bash virt-what 2>/dev/null)
+
+  if [ -z ${VIRT} ]
+  then
+    echo "Running on hardware or unknown hypervisor"
+  else
+    if [ "$(echo ${VIRT} | head -1)" = "xen" ]
     then
-      VIRTUAL=false
-    else
+      if [ "$(echo ${VIRT} | tail -1)" = "xen-dom0" ]
+      then
+        VIRTUAL=false
+      else
+        VIRTUAL=true
+        HYPERVISOR="Xen"
+      fi
+    elif [ "$(echo ${VIRT} | head -1)" = "kvm" ]
+    then
       VIRTUAL=true
-      HYPERVISOR="Xen"
+      HYPERVISOR="KVM"
+    else
+      VIRTUAL=false
     fi
-  elif [ "$(echo ${VIRT} | head -1)" = "kvm" ]
-  then
-    VIRTUAL=true
-    HYPERVISOR="KVM"
-  else
-    VIRTUAL=false
+
+    if [ "${VIRTUAL}" = "false" ]
+    then
+      echo "Running on Hardware or unknown Hypervisor"
+    else
+      echo "Running virtually on a ${HYPERVISOR} hypervisor"
+    fi
   fi
 
-  if [ "${VIRTUAL}" = "false" ]
+  #dmidecode | grep -i vmware
+  #lspci | grep -i vmware
+  #grep -q ^flags.*\ hypervisor\ /proc/cpuinfo && echo "This machine is a VM"
+
+  echo -n "CPU cores: "
+
+  cat /proc/cpuinfo | grep ^processor | wc -l
+
+  echo -n "RAM: "
+
+  free -h | grep ^Mem | awk '{print $2}'
+
+
+  if [ "${OS}" = "REDHAT" ]
   then
-    echo "Running on Hardware or unknown Hypervisor"
-  else
-    echo "Running virtually on a ${HYPERVISOR} hypervisor"
+    echo -n "SELinux: "
+    getenforce
   fi
-fi
 
-#dmidecode | grep -i vmware
-#lspci | grep -i vmware
-#grep -q ^flags.*\ hypervisor\ /proc/cpuinfo && echo "This machine is a VM"
+  ## troubleshooting SELinux for Icinga 2
+  #semodule -l | grep -e icinga2 -e nagios -e apache
+  #ps -eZ | grep icinga2
+  #semanage port -l | grep icinga2
+  #getsebool -a | grep icinga2
+  #audit2allow -li /var/log/audit/audit.log
 
-echo -n "CPU cores: "
+  doc_firewall
+}
 
-cat /proc/cpuinfo | grep ^processor | wc -l
-
-echo -n "RAM: "
-
-free -h | grep ^Mem | awk '{print $2}'
+### Main ###
 
 
-if [ "${OS}" = "REDHAT" ]
-then
-  echo -n "SELinux: "
-  getenforce
-fi
+while getopts ${OPTSTR} SWITCHVAR
+do
+  case ${SWITCHVAR} in
+    h) show_help;;
+    t) CREATE_TARBALL=true;;
+  esac
+done
 
-## troubleshooting SELinux for Icinga 2
-#semodule -l | grep -e icinga2 -e nagios -e apache
-#ps -eZ | grep icinga2
-#semanage port -l | grep icinga2
-#getsebool -a | grep icinga2
-#audit2allow -li /var/log/audit/audit.log
-
-doc_firewall
+doc_os
 
 echo ""
 echo "# Icinga 2 #"
